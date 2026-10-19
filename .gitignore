@@ -1,0 +1,30 @@
+# Rahasia (token & key)
+.env
+.env.*
+!.env.example
+
+# Cookies YouTube (berisi sesi login)
+youtube_cookies.txt
+youtube_cookies.bak
+
+# State bot (id anime/komik/movie yang sudah terkirim)
+*_state.json
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+env/
+.env
+
+# Log
+*.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+discord.py>=2.4.0
+aiohttp>=3.9.0
+python-dotenv>=1.0.0
+yt-dlp[default]>=2025.11.12
+vtracer>=0.6.11
+Pillow>=10.0.0
+defusedxml>=0.7.1
+svgelements>=1.9.6
