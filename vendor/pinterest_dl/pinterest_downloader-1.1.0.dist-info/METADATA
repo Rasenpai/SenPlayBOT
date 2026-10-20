@@ -1,0 +1,313 @@
+Metadata-Version: 2.5
+Name: pinterest-downloader
+Version: 1.1.0
+Summary: Free, open-source Pinterest high-quality image & video downloader (CLI + web UI)
+Project-URL: Homepage, https://github.com/MohammadAliMehri/pinterest-downloader
+Project-URL: Repository, https://github.com/MohammadAliMehri/pinterest-downloader
+Project-URL: Issues, https://github.com/MohammadAliMehri/pinterest-downloader/issues
+Project-URL: Changelog, https://github.com/MohammadAliMehri/pinterest-downloader/releases
+Author-email: Mohammad Ali Mehri <mohammadalimehri@users.noreply.github.com>
+Maintainer: Mohammad Ali Mehri
+License-Expression: MIT
+License-File: LICENSE
+Keywords: cli,downloader,fastapi,images,open-source,pinterest,scraper,videos
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Multimedia :: Graphics
+Classifier: Topic :: Multimedia :: Video
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Requires-Dist: aiofiles>=24.1
+Requires-Dist: beautifulsoup4>=4.12
+Requires-Dist: fastapi>=0.115
+Requires-Dist: httpx>=0.27
+Requires-Dist: jinja2>=3.1
+Requires-Dist: pydantic-settings>=2.3
+Requires-Dist: pydantic>=2.7
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: rich>=13.7
+Requires-Dist: tenacity>=8.3
+Requires-Dist: uvicorn[standard]>=0.30
+Provides-Extra: dev
+Requires-Dist: httpx>=0.27; extra == 'dev'
+Requires-Dist: pytest>=8.0; extra == 'dev'
+Requires-Dist: ruff>=0.5; extra == 'dev'
+Description-Content-Type: text/markdown
+
+# Pinterest Downloader
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)](https://github.com/MohammadAliMehri/pinterest-downloader)
+[![GitHub](https://img.shields.io/badge/GitHub-MohammadAliMehri%2Fpinterest--downloader-181717?logo=github)](https://github.com/MohammadAliMehri/pinterest-downloader)
+
+Free, open-source **high-quality Pinterest image & video downloader** — CLI + local web UI.
+
+Paste a pin, board, search, `pin.it`, or CDN URL (`i.pinimg.com` / `v1.pinimg.com`) and download the best available media:
+
+- **Images** — `originals` → `1200x` → `736x` (auto fallback)
+- **Videos** — progressive MP4 (prefer 720p) plus poster still when available
+
+- No paid API key  
+- No login required for public content  
+- MIT licensed  
+
+**Repo:** [github.com/MohammadAliMehri/pinterest-downloader](https://github.com/MohammadAliMehri/pinterest-downloader)
+
+> **Not affiliated with Pinterest.** Automated access may conflict with Pinterest’s Terms of Service. Use only for content you have the right to download, at your own risk.
+
+---
+
+## Features
+
+- **HQ images** — prefers `i.pinimg.com/originals/…`, auto-falls back if missing  
+- **Videos** — saves progressive MP4 from `v1.pinimg.com` (plus `_poster` image) when the pin has video  
+- **Pin / board / search / pin.it / direct CDN** URLs (images and direct `.mp4` links)  
+- **CLI** with Rich progress bars (`pinterest-dl` / `pin-dl`)  
+- **Local web UI** (FastAPI) — paste URL, preview grid with VIDEO badges, download  
+- **Native save folder window** on download (Windows/macOS/Linux folder dialog)  
+- **Concurrent downloads**, skip-existing, JSON output, optional proxy  
+- **Python 3.10+**, offline unit tests  
+
+---
+
+## Install
+
+### From GitHub (recommended)
+
+```bash
+git clone https://github.com/MohammadAliMehri/pinterest-downloader.git
+cd pinterest-downloader
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+# source .venv/bin/activate
+
+pip install -U pip
+pip install -e .
+```
+
+### One-liner (pip from Git)
+
+```bash
+pip install "git+https://github.com/MohammadAliMehri/pinterest-downloader.git"
+```
+
+### Quick launchers
+
+```bash
+# Windows — opens web UI if no args
+run.bat
+
+# Unix
+chmod +x run.sh && ./run.sh
+```
+
+---
+
+## Usage
+
+### CLI
+
+```bash
+# Single pin (image or video — highest quality)
+pinterest-dl "https://www.pinterest.com/pin/99360735500167749/" -o downloads
+
+# Video pin → saves .mp4 + poster image
+pinterest-dl "https://www.pinterest.com/pin/YOUR_VIDEO_PIN_ID/" -o downloads
+
+# Direct video CDN URL
+pinterest-dl "https://v1.pinimg.com/videos/mc/720p/aa/bb/cc/sig.mp4" -o downloads
+
+# Preview only (no files) — shows Type column (image/video)
+pinterest-dl scrape "https://www.pinterest.com/kentbrew/adventures-at-pinterest/" -n 20
+
+# Board / search (first HTML batch)
+pinterest-dl download "https://www.pinterest.com/search/pins/?q=minimal%20desk" -n 30 -o downloads
+
+# Local web UI → http://127.0.0.1:8787
+pinterest-dl web --port 8787 -o downloads
+```
+
+On **Download HQ**, the web UI opens a native **folder window** so you can pick where images and videos are saved (Browse… anytime). CLI option:
+
+```bash
+pinterest-dl download "PIN_URL" --pick-folder
+```
+
+URL-only shortcut (defaults to `download`):
+
+```bash
+pinterest-dl "https://www.pinterest.com/pin/99360735500167749/" -o out
+```
+
+Alias: `pin-dl` (same CLI).
+
+### CLI reference
+
+```text
+pinterest-dl download <url> [-o DIR] [-n LIMIT] [-q originals|1200x|736x|…] [-w WORKERS] [--pick-folder]
+pinterest-dl scrape   <url> [--json] [-n LIMIT]
+pinterest-dl web      [--host 127.0.0.1] [--port 8787] [-o DIR]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-o` / `--output` | Output directory (default: `downloads`) |
+| `-n` / `--limit` | Max items (images/videos) |
+| `-q` / `--quality` | Preferred image CDN size (`originals` recommended; videos always prefer 720p MP4) |
+| `-w` / `--workers` | Parallel downloads (default: `6`) |
+| `--pick-folder` | Open a native folder window for the save path |
+| `--proxy` | HTTP(S) proxy URL |
+| `--no-skip` | Re-download even if file exists |
+| `--json` | Machine-readable output |
+
+### Output files
+
+| Media | Typical filename |
+|-------|------------------|
+| Image pin | `{pinId}_{title}.jpg` (or `.png` / `.webp`) |
+| Video pin | `{pinId}_{title}.mp4` **and** `{pinId}_{title}_poster.jpg` |
+| Direct MP4 URL | `{sig}_video.mp4` |
+
+### Python API
+
+```python
+from pinterest_dl.service import PinterestService
+
+svc = PinterestService(output_dir="downloads", preferred_quality="originals")
+
+# Metadata only
+scraped = svc.scrape("https://www.pinterest.com/pin/99360735500167749/")
+for item in scraped.items:
+    print(item.quality, item.image_url, item.video_url, item.is_video)
+
+# Scrape + download (images and/or videos)
+scraped, results = svc.download(
+    "https://www.pinterest.com/kentbrew/adventures-at-pinterest/",
+    limit=25,
+)
+for r in results:
+    if r.ok:
+        print(r.path, r.paths)  # primary path + all written files
+```
+
+### Web UI
+
+```bash
+pinterest-dl web --host 127.0.0.1 --port 8787 -o downloads
+```
+
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787) — paste a URL, **Preview** (video pins show a VIDEO badge), then **Download HQ**.
+
+---
+
+## How it works
+
+Pinterest does not offer a free public media API for this use case. This tool:
+
+1. Fetches the public HTML page with a browser-like client (`httpx`)
+2. Parses embedded GraphQL SSR / relay payloads, Open Graph tags, `i.pinimg.com` image URLs, and `v*.pinimg.com` video URLs
+3. **Images:** rewrites to the highest quality path (`/originals/`, then fallbacks)  
+   **Videos:** picks the best progressive MP4 from `videos.videoList` / `videos.videoUrls` (prefer 720p; skips HLS/m3u8)
+4. Downloads from Pinterest’s CDN with concurrent workers (video pins get MP4 + poster)
+
+**Board / search note:** public board and search pages only embed the first loaded batch in HTML. Full video URLs often appear only on single-pin closeup pages; grids may expose poster images only. Huge boards may need multiple section URLs or repeated runs.
+
+**Video note:** progressive MP4 is supported. HLS-only streams (`.m3u8`) are not downloaded (would need ffmpeg). HEVC/trial ladder variants are deprioritized in favor of standard 720p MP4.
+
+---
+
+## Project layout
+
+```text
+pinterest-downloader/
+├── pyproject.toml
+├── README.md
+├── LICENSE
+├── run.bat / run.sh
+├── src/pinterest_dl/
+│   ├── cli.py            # CLI entry
+│   ├── client.py         # HTTP session
+│   ├── extractor.py      # HTML / JSON media extraction (images + videos)
+│   ├── downloader.py     # concurrent HQ downloads
+│   ├── service.py        # orchestration
+│   ├── urls.py           # URL / pinimg / video helpers
+│   ├── models.py
+│   └── web/              # FastAPI UI
+└── tests/
+```
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/MohammadAliMehri/pinterest-downloader.git
+cd pinterest-downloader
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+pip install -e ".[dev]"
+pytest -q
+ruff check src tests
+```
+
+---
+
+## Changelog
+
+### 1.1.0
+
+- Download **videos** (progressive MP4, prefer 720p) alongside poster images
+- Direct `v1.pinimg.com/...mp4` URLs
+- CLI Type column; web VIDEO badge; recent-files lists `.mp4`
+- Extractor: `videos.videoList` / `videoUrls` (works even when `isVideo` is false on idea pins)
+
+### 1.0.1
+
+- Native folder save dialog on web/CLI download
+
+### 1.0.0
+
+- Initial release: HQ image downloader (CLI + web UI)
+
+---
+
+## Contributing
+
+Issues and PRs welcome:
+
+- Bugs / ideas: [Issues](https://github.com/MohammadAliMehri/pinterest-downloader/issues)  
+- PRs: fork → branch → open a pull request against `master`  
+
+Please keep changes focused and include a short description of what you tested.
+
+---
+
+## Disclaimer & ethics
+
+- Personal backups of **your own** pins and public-domain / properly licensed content only  
+- Do not use for bulk commercial scraping, bypassing access controls, or harassing creators  
+- Respect rate limits and copyright  
+- Authors are not liable for misuse  
+
+This project is **not** affiliated with, endorsed by, or sponsored by Pinterest, Inc.
+
+---
+
+## License
+
+[MIT](LICENSE) © [Mohammad Ali Mehri](https://github.com/MohammadAliMehri)

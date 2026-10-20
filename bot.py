@@ -10,10 +10,12 @@ load_dotenv()
 from tools import (
     bstation,
     converter,
+    donations,
     instagram,
     svg2am,
     tiktok,
     youtube,
+    radio,
 )  # noqa: E402  (harus setelah load_dotenv)
 from tools import amprem  # noqa: E402
 from Moderation import automod  # noqa: E402
@@ -21,6 +23,7 @@ from SenPlayUpdate import animeongoing  # noqa: E402
 from SenPlayUpdate import komikupdate  # noqa: E402
 from SenPlayUpdate import movieupdate  # noqa: E402
 from SenPlayUpdate import animeupdate, seriesupdate  # noqa: E402
+from tools import website
 from tools import amxml  # noqa: E402
 
 from tools import help as help_cmd  # noqa: E402
@@ -59,6 +62,9 @@ class SenBot(discord.Client):
         movieupdate.setup(self)
         animeupdate.setup(self)
         seriesupdate.setup(self)
+        donations.setup(self)
+        website.setup(self)
+        radio.setup(self)
 
         if GUILD_ID:
             # Sync ke server tertentu: muncul instan.

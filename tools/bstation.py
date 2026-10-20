@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import time
+from typing import Any, cast
 from urllib.parse import (
     parse_qsl,
     quote,
@@ -21,6 +22,7 @@ load_dotenv()
 
 API = os.getenv("BSTATION_API", "https://bstation-api.senplay.web.id").rstrip("/")
 
+ALLOWED_CHANNEL_ID = 1561641547123007509  # command Bstation hanya di channel ini
 POLL_INTERVAL = 1.0  # detik antar polling job
 EDIT_INTERVAL = 2.0  # detik minimal antar edit pesan (hindari rate limit)
 POLL_MAX_FAILURES = 5
@@ -71,7 +73,7 @@ class ApiError(Exception):
         self.retry_after = retry_after
 
 
-async def api(session: aiohttp.ClientSession, path, body=None, headers=None):
+async def api(session: aiohttp.ClientSession, path, body=None, headers=None) -> Any:
     method = "POST" if body is not None else "GET"
     async with session.request(
         method, f"{API}{path}", json=body, headers=headers
@@ -312,7 +314,7 @@ class FormatSelect(discord.ui.Select):
         super().__init__(placeholder="Pilih kualitas...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        view: "FormatView" = self.view
+        view = cast("FormatView", self.view)
         fmt = view.formats[int(self.values[0])]
         view.stop()
         await interaction.response.edit_message(
@@ -335,7 +337,7 @@ class FormatView(discord.ui.View):
         self.info = info
         self.url = url
         self.formats = info["formats"][:25]
-        self.message = None
+        self.message: discord.Message | discord.WebhookMessage | None = None
         self.add_item(FormatSelect(self.formats))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -438,11 +440,20 @@ async def start_download(bot, message, owner_id, info, url, fmt):
 # ---------------------------------------------------------------------------
 
 
-def setup(bot: discord.Client):
+def setup(bot: Any):
     @bot.tree.command(name="bstation", description="Download video dari Bstation")
     @app_commands.describe(url="Link video Bstation (bilibili.tv / bstation.tv)")
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)
     async def bstation(interaction: discord.Interaction, url: str):
+        # Batasi hanya di channel yang diizinkan.
+        if interaction.channel_id != ALLOWED_CHANNEL_ID:
+            await interaction.response.send_message(
+                f"Command ini hanya bisa dipakai di <#{ALLOWED_CHANNEL_ID}>. "
+                "Silakan kirim ulang command kamu di channel tersebut.",
+                ephemeral=True,
+            )
+            return
+
         clean_url = normalize_source_url(url)
         if not clean_url:
             await interaction.response.send_message(

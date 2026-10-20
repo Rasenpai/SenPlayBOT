@@ -1,0 +1,3 @@
+[console_scripts]
+pin-dl = pinterest_dl.cli:main
+pinterest-dl = pinterest_dl.cli:main

@@ -5,6 +5,7 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlparse, urlunsplit
 
 import aiohttp
@@ -63,6 +64,7 @@ print(
     else "[instagram] IG_API_KEY kosong, mode cadangan API nonaktif."
 )
 
+ALLOWED_CHANNEL_ID = 1561641498523729940  # command Instagram hanya di channel ini
 EDIT_INTERVAL = 2.0
 MAX_DURATION = 10 * 60
 MAX_ITEMS = 10
@@ -183,7 +185,7 @@ def get_stats(info):
 
 @contextmanager
 def cookie_opts(use_cookies):
-    opts = {
+    opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
@@ -214,13 +216,13 @@ def with_fallback(fn):
         except YoutubeDLError as err:
             last = err
             print(f"[instagram] cookies={use_cookies} gagal: {clean_error(err)[:120]}")
-    raise last
+    raise last or RuntimeError("Gagal memproses link.")
 
 
 def _extract_info(url):
     def attempt(use_cookies):
         with cookie_opts(use_cookies) as opts:
-            with YoutubeDL({**opts, "skip_download": True}) as ydl:
+            with YoutubeDL(cast(Any, {**opts, "skip_download": True})) as ydl:
                 return ydl.extract_info(url, download=False)
 
     return with_fallback(attempt)
@@ -249,7 +251,7 @@ def _download(url, outdir, kind, state):
 
     def attempt(use_cookies):
         with cookie_opts(use_cookies) as base:
-            opts = {
+            opts: dict[str, Any] = {
                 **base,
                 "outtmpl": os.path.join(outdir, "%(id)s.%(ext)s"),
                 "progress_hooks": [hook],
@@ -267,7 +269,7 @@ def _download(url, outdir, kind, state):
                     }
                 ]
             state.update(phase="starting", pct=0)
-            with YoutubeDL(opts) as ydl:
+            with YoutubeDL(cast(Any, opts)) as ydl:
                 ydl.download([url])
 
     with_fallback(attempt)
@@ -654,6 +656,15 @@ async def run_api_fallback(interaction, url, limit, first_error):
 
 
 async def handle(interaction: discord.Interaction, url: str, kind: str):
+    # Batasi hanya di channel yang diizinkan.
+    if interaction.channel_id != ALLOWED_CHANNEL_ID:
+        await interaction.response.send_message(
+            f"Command ini hanya bisa dipakai di <#{ALLOWED_CHANNEL_ID}>. "
+            "Silakan kirim ulang command kamu di channel tersebut.",
+            ephemeral=True,
+        )
+        return
+
     clean_url = normalize_url(url)
     if not clean_url:
         await interaction.response.send_message(
@@ -715,7 +726,7 @@ async def handle(interaction: discord.Interaction, url: str, kind: str):
 # ---------------------------------------------------------------------------
 
 
-def setup(bot: discord.Client):
+def setup(bot: Any):
     @bot.tree.command(name="igmp4", description="Download video/foto Instagram (MP4)")
     @app_commands.describe(url="Link post / reel Instagram")
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)

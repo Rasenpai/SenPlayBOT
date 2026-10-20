@@ -5,6 +5,7 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlparse, urlunsplit
 
 import aiohttp
@@ -43,6 +44,7 @@ else:
         "Lanjut tanpa cookies."
     )
 
+ALLOWED_CHANNEL_ID = 1561641470027636796  # command YouTube hanya di channel ini
 EDIT_INTERVAL = 2.0  # detik minimal antar edit pesan
 MAX_DURATION = 60 * 60  # batas durasi video (detik)
 MAX_HEIGHT = 1080  # kualitas video tertinggi yang ditawarkan
@@ -252,7 +254,7 @@ def variant_opts(variant):
 
     Cookie disalin ke file sementara supaya file asli tidak ditimpa yt-dlp.
     """
-    opts = {
+    opts: dict[str, Any] = {
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
@@ -296,13 +298,13 @@ def with_fallback(fn):
             print(
                 f"[youtube] Varian #{idx} gagal ({clean_error(err)[:120]}), coba berikutnya..."
             )
-    raise last_err
+    raise last_err or RuntimeError("Semua varian gagal.")
 
 
 def _extract_info(url):
     def attempt(variant):
         with variant_opts(variant) as opts:
-            with YoutubeDL({**opts, "skip_download": True}) as ydl:
+            with YoutubeDL(cast(Any, {**opts, "skip_download": True})) as ydl:
                 return ydl.extract_info(url, download=False)
 
     return with_fallback(attempt)
@@ -361,7 +363,7 @@ def _download(url, outdir, kind, height, state):
 
     def attempt(variant):
         with variant_opts(variant) as base:
-            opts = {
+            opts: dict[str, Any] = {
                 **base,
                 "outtmpl": os.path.join(outdir, "%(id)s.%(ext)s"),
                 "progress_hooks": [hook],
@@ -382,7 +384,7 @@ def _download(url, outdir, kind, height, state):
                     }
                 ]
             state.update(phase="starting", pct=0)
-            with YoutubeDL(opts) as ydl:
+            with YoutubeDL(cast(Any, opts)) as ydl:
                 ydl.download([url])
 
     with_fallback(attempt)
@@ -496,7 +498,7 @@ class QualitySelect(discord.ui.Select):
         super().__init__(placeholder="Pilih kualitas...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        view: "QualityView" = self.view
+        view = cast("QualityView", self.view)
         height, size = self.options_data[int(self.values[0])]
 
         if size is not None and size > EXTERNAL_MAX:
@@ -513,18 +515,20 @@ class QualitySelect(discord.ui.Select):
             embed=progress_embed(view.info, "mp4", height, {}), view=None
         )
 
+        message = interaction.message
+
         async def on_fail(error):
+            if message is None:
+                return
             new_view = QualityView(
                 view.owner_id, view.info, view.url, view.options_data, view.limit
             )
-            new_view.message = interaction.message
-            await interaction.message.edit(
-                embed=info_embed(view.info, error), view=new_view
-            )
+            new_view.message = message
+            await message.edit(embed=info_embed(view.info, error), view=new_view)
 
         await run_download(
             interaction,
-            interaction.message,
+            message,
             view.owner_id,
             view.info,
             view.url,
@@ -543,7 +547,7 @@ class QualityView(discord.ui.View):
         self.url = url
         self.options_data = options_data
         self.limit = limit
-        self.message = None
+        self.message: discord.Message | discord.WebhookMessage | None = None
         self.add_item(QualitySelect(options_data, limit))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -673,6 +677,15 @@ async def run_download(
 
 
 async def handle(interaction: discord.Interaction, url: str, kind: str):
+    # Batasi hanya di channel yang diizinkan.
+    if interaction.channel_id != ALLOWED_CHANNEL_ID:
+        await interaction.response.send_message(
+            f"Command ini hanya bisa dipakai di <#{ALLOWED_CHANNEL_ID}>. "
+            "Silakan kirim ulang command kamu di channel tersebut.",
+            ephemeral=True,
+        )
+        return
+
     clean_url = normalize_url(url)
     if not clean_url:
         await interaction.response.send_message(
@@ -760,7 +773,7 @@ async def handle(interaction: discord.Interaction, url: str, kind: str):
 # ---------------------------------------------------------------------------
 
 
-def setup(bot: discord.Client):
+def setup(bot: Any):
     @bot.tree.command(name="ytmp4", description="Download video YouTube (MP4)")
     @app_commands.describe(url="Link video YouTube")
     @app_commands.checks.cooldown(1, 10.0, key=lambda i: i.user.id)

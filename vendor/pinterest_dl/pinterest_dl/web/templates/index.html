@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pinterest HQ Downloader</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <main class="shell">
+    <header class="hero">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">P</div>
+        <div>
+          <h1>Pinterest HQ Downloader</h1>
+          <p class="tagline">Free · Open source · HQ images & videos</p>
+        </div>
+      </div>
+      <span class="badge">v{{ version }}</span>
+    </header>
+
+    <section class="card">
+      <form id="dl-form" autocomplete="off">
+        <label class="field">
+          <span>Pinterest URL</span>
+          <input
+            id="url"
+            name="url"
+            type="url"
+            required
+            placeholder="https://www.pinterest.com/pin/…  or board / search / pin.it"
+          />
+        </label>
+
+        <label class="field">
+          <span>Save folder</span>
+          <div class="path-row">
+            <input
+              id="output"
+              name="output"
+              type="text"
+              readonly
+              value="{{ default_output }}"
+              title="Click Browse or Download to choose a folder"
+            />
+            <button type="button" id="btn-browse" class="btn ghost">Browse…</button>
+          </div>
+          <span class="hint">Download opens a folder window so you can pick where images and videos are saved.</span>
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span>Max items</span>
+            <input id="limit" name="limit" type="number" min="1" max="500" value="40" />
+          </label>
+          <label class="field">
+            <span>Preferred quality</span>
+            <select id="quality" name="quality">
+              <option value="originals" selected>originals (best)</option>
+              <option value="1200x">1200x</option>
+              <option value="736x">736x</option>
+              <option value="564x">564x</option>
+              <option value="474x">474x</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Workers</span>
+            <input id="workers" name="workers" type="number" min="1" max="32" value="6" />
+          </label>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" id="ask-folder" checked />
+          <span>Ask where to save on every download</span>
+        </label>
+
+        <div class="actions">
+          <button type="button" id="btn-scrape" class="btn ghost">Preview</button>
+          <button type="submit" id="btn-download" class="btn primary">Download HQ</button>
+        </div>
+      </form>
+
+      <div id="status" class="status hidden" role="status">
+        <div class="status-top">
+          <strong id="status-text">Idle</strong>
+          <span id="status-count" class="muted"></span>
+        </div>
+        <div class="bar"><div id="bar-fill"></div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Results</h2>
+        <p class="muted" id="result-meta">Paste a URL and preview or download.</p>
+      </div>
+      <div id="warnings"></div>
+      <div id="grid" class="grid"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Recent files</h2>
+        <button type="button" id="btn-refresh" class="btn tiny ghost">Refresh</button>
+      </div>
+      <p class="muted small">Saved under <code id="out-path">{{ default_output }}</code></p>
+      <ul id="files" class="files"></ul>
+    </section>
+
+    <footer class="footer">
+      <p>
+        Not affiliated with Pinterest. Use only for content you have rights to download.
+        Personal / educational use. MIT licensed.
+      </p>
+      <p>
+        <a href="https://github.com/MohammadAliMehri/pinterest-downloader" target="_blank" rel="noopener noreferrer">
+          github.com/MohammadAliMehri/pinterest-downloader
+        </a>
+      </p>
+    </footer>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

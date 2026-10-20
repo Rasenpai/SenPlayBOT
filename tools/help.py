@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 
-from tools import amprem, converter, instagram, svgcore, tiktok, youtube
+from tools import amprem, converter, instagram, svgcore, tiktok, website, youtube
 from tools.youtube import EXTERNAL_MAX, format_bytes
 
 COLOR_HELP = discord.Color.from_rgb(88, 101, 242)
@@ -9,6 +9,12 @@ COLOR_HELP = discord.Color.from_rgb(88, 101, 242)
 
 def minutes(seconds):
     return f"{int(seconds // 60)} menit"
+
+
+def get_tree(bot: discord.Client) -> app_commands.CommandTree:
+    # SenBot punya atribut `tree`, tapi discord.Client tidak. getattr supaya
+    # type checker tidak menandai merah.
+    return getattr(bot, "tree")
 
 
 def build_embed(interaction: discord.Interaction, bot: discord.Client):
@@ -81,6 +87,18 @@ def build_embed(interaction: discord.Interaction, bot: discord.Client):
     )
 
     embed.add_field(
+        name="Website Analyzer",
+        value=(
+            "`/website url:<link>` analisis website publik: status HTTP, redirect, "
+            "title, meta description, teknologi, jumlah link/gambar/JS/CSS, "
+            "SEO dasar, security headers, waktu respons, dan screenshot.\n"
+            "Analisis pasif saja. Localhost dan IP internal ditolak. "
+            f"Hanya bisa dipakai di <#{website.ALLOWED_CHANNEL_ID}>."
+        ),
+        inline=False,
+    )
+
+    embed.add_field(
         name="AM Premium",
         value=(
             "`/amprem` proses AMPrem lewat magic link email. "
@@ -108,6 +126,7 @@ def build_embed(interaction: discord.Interaction, bot: discord.Client):
         name="Aturan",
         value=(
             "Cooldown 10 detik per command downloader, 15 detik untuk `/svg` dan `/svg2am`, "
+            "30 detik untuk `/website`, "
             f"{int(amprem.COOLDOWN // 60)} menit per user untuk `/amprem`.\n"
             "Satu user hanya bisa menjalankan satu proses dalam satu waktu.\n"
             "Live stream, post private, dan video melebihi batas durasi tidak didukung."
@@ -115,15 +134,14 @@ def build_embed(interaction: discord.Interaction, bot: discord.Client):
         inline=False,
     )
 
-    total = len(bot.tree.get_commands(guild=interaction.guild)) or len(
-        bot.tree.get_commands()
-    )
+    tree = get_tree(bot)
+    total = len(tree.get_commands(guild=interaction.guild)) or len(tree.get_commands())
     embed.set_footer(text=f"{total} command tersedia • /help")
     return embed
 
 
 def setup(bot: discord.Client):
-    @bot.tree.command(name="help", description="Daftar command dan cara pakai bot")
+    @get_tree(bot).command(name="help", description="Daftar command dan cara pakai bot")
     async def help_command(interaction: discord.Interaction):
         await interaction.response.send_message(
             embed=build_embed(interaction, bot), ephemeral=True
