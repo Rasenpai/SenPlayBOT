@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from typing import Any, Protocol
 
 import aiohttp
 import discord
@@ -11,6 +12,7 @@ PREMIUM_ROLE_ID = 1561692064352174100  # role "Premium User"
 ALLOWED_GUILD_ID = 1561577570720284705  # server yang diizinkan
 ALLOWED_CHANNEL_ID = 1561700168989016064  # channel yang diizinkan
 INVITE_URL = "https://discord.gg/5rCDYCTsG2"
+OWNER_ID = 1215281826092810281  # owner bot: bebas dari cooldown /amprem
 
 MSG_NOT_PREMIUM = (
     "🔒 Command ini hanya bisa digunakan oleh user dengan role **Premium User**.\n"
@@ -31,12 +33,26 @@ COOLDOWN = 300.0  # 5 menit per user (berdasarkan user id)
 ACTIVE: set[int] = set()
 
 
+class BotLike(Protocol):
+    """Bentuk minimal bot yang dipakai modul ini (hanya untuk type checker)."""
+
+    tree: app_commands.CommandTree[Any]
+    http_session: aiohttp.ClientSession | None
+
+
 class ApiError(Exception):
     pass
 
 
 class WrongLocation(app_commands.CheckFailure):
     pass
+
+
+def cooldown_factory(interaction: discord.Interaction) -> app_commands.Cooldown | None:
+    """Cooldown per user; owner dikembalikan None sehingga tanpa cooldown."""
+    if interaction.user.id == OWNER_ID:
+        return None
+    return app_commands.Cooldown(1, COOLDOWN)
 
 
 def only_allowed_server(interaction: discord.Interaction) -> bool:
@@ -49,6 +65,21 @@ def only_allowed_channel(interaction: discord.Interaction) -> bool:
     if interaction.channel_id != ALLOWED_CHANNEL_ID:
         raise WrongLocation(MSG_WRONG_CHANNEL.format(channel_id=ALLOWED_CHANNEL_ID))
     return True
+
+
+async def safe_error_reply(interaction: discord.Interaction, msg: str) -> None:
+    """Balas error tanpa melempar ulang jika interaction sudah kedaluwarsa."""
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except discord.NotFound as e:
+        print(
+            f"[amprem] tidak bisa membalas error, interaction kedaluwarsa (code {e.code})"
+        )
+    except discord.HTTPException as e:
+        print(f"[amprem] gagal membalas error: HTTP {e.status} code {e.code}: {e.text}")
 
 
 def short(value, limit=300):
@@ -178,12 +209,13 @@ class LinkModal(discord.ui.Modal, title="Masukkan Magic Link"):
             id_token = None
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
-        print(f"[amprem] modal error: {type(error).__name__}")
-        msg = "❌ Terjadi kesalahan. Coba lagi nanti."
-        if interaction.response.is_done():
-            await interaction.followup.send(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message(msg, ephemeral=True)
+        detail = (
+            f" (HTTP {error.status}, code {error.code})"
+            if isinstance(error, discord.HTTPException)
+            else ""
+        )
+        print(f"[amprem] modal error: {type(error).__name__}{detail}")
+        await safe_error_reply(interaction, "❌ Terjadi kesalahan. Coba lagi nanti.")
 
 
 class LinkView(discord.ui.View):
@@ -192,7 +224,7 @@ class LinkView(discord.ui.View):
         self.bot = bot
         self.email = email
         self.owner_id = owner_id
-        self.message = None
+        self.message: discord.Message | discord.WebhookMessage | None = None
 
     @discord.ui.button(label="Masukkan Magic Link", style=discord.ButtonStyle.primary)
     async def open_modal(self, interaction: discord.Interaction, button):
@@ -211,7 +243,8 @@ class LinkView(discord.ui.View):
     async def finish(self):
         self.stop()
         for item in self.children:
-            item.disabled = True
+            if isinstance(item, discord.ui.Button):
+                item.disabled = True
         if self.message:
             try:
                 await self.message.edit(view=self)
@@ -276,21 +309,34 @@ class EmailModal(discord.ui.Modal, title="AMPrem - Email"):
         )
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
-        print(f"[amprem] modal error: {type(error).__name__}")
-        msg = "❌ Terjadi kesalahan. Coba lagi nanti."
-        if interaction.response.is_done():
-            await interaction.followup.send(msg, ephemeral=True)
-        else:
-            await interaction.response.send_message(msg, ephemeral=True)
+        detail = (
+            f" (HTTP {error.status}, code {error.code})"
+            if isinstance(error, discord.HTTPException)
+            else ""
+        )
+        print(f"[amprem] modal error: {type(error).__name__}{detail}")
+        await safe_error_reply(interaction, "❌ Terjadi kesalahan. Coba lagi nanti.")
 
 
-def setup(bot: discord.Client):
+def setup(bot: BotLike):
     @bot.tree.command(name="amprem", description="Proses AMPrem lewat magic link email")
     # Urutan pengecekan (dari bawah ke atas): server -> role -> channel -> cooldown.
+    # Cooldown 5 menit per user, kecuali OWNER_ID (lihat cooldown_factory).
     @app_commands.guild_only()
-    @app_commands.checks.cooldown(1, COOLDOWN, key=lambda i: i.user.id)
+    @app_commands.checks.dynamic_cooldown(cooldown_factory, key=lambda i: i.user.id)
     @app_commands.check(only_allowed_channel)
     @app_commands.checks.has_role(PREMIUM_ROLE_ID)
     @app_commands.check(only_allowed_server)
     async def amprem(interaction: discord.Interaction):
+        # Diagnostik: umur interaction saat callback mulai. Modal harus dikirim
+        # sebagai respons awal dalam 3 detik sejak interaction dibuat. Jika umur
+        # sudah besar di sini, keterlambatan terjadi SEBELUM kode ini jalan
+        # (event loop terblokir / gateway lag / instance bot ganda), bukan di
+        # dalam command ini. Kegagalan send_modal ditangani di bot.py.
+        age = (discord.utils.utcnow() - interaction.created_at).total_seconds()
+        if age > 2.0:
+            print(
+                f"[amprem] PERINGATAN: interaction berumur {age:.2f}s saat "
+                f"callback mulai (batas respons 3s) user={interaction.user.id}"
+            )
         await interaction.response.send_modal(EmailModal(bot))

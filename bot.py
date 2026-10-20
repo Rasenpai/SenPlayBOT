@@ -1,4 +1,5 @@
 import os
+import traceback
 
 import aiohttp
 import discord
@@ -94,10 +95,55 @@ class SenBot(discord.Client):
 bot = SenBot()
 
 
+def _interaction_age(interaction: discord.Interaction) -> float:
+    """Umur interaction (detik) sejak dibuat Discord. Respons awal maksimal 3 detik."""
+    return (discord.utils.utcnow() - interaction.created_at).total_seconds()
+
+
+async def _safe_reply(interaction: discord.Interaction, msg: str) -> None:
+    """Kirim balasan error tanpa pernah melempar error baru dari handler.
+
+    - Belum direspons -> respons awal (send_message), hanya sekali.
+    - Sudah direspons  -> followup.send.
+    - Interaction kedaluwarsa (404) atau gagal kirim -> cukup dicatat di log.
+    """
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+    except discord.NotFound as e:
+        # 10062 Unknown interaction / 10015 Unknown webhook: sudah tidak valid.
+        print(
+            f"[error] balasan error tidak terkirim, interaction sudah tidak valid "
+            f"(code {e.code}, umur {_interaction_age(interaction):.2f}s)"
+        )
+    except discord.HTTPException as e:
+        print(
+            f"[error] balasan error gagal dikirim: HTTP {e.status} "
+            f"code {e.code}: {e.text}"
+        )
+
+
 @bot.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction, error: app_commands.AppCommandError
 ):
+    cmd_name = getattr(interaction.command, "name", "?")
+    orig = getattr(error, "original", error)
+
+    # Interaction kedaluwarsa (Unknown interaction, 10062): Discord menolak
+    # respons karena lewat 3 detik / sudah tidak valid. Tidak ada yang bisa
+    # dikirim ke user, jadi cukup catat dengan info diagnostik lalu selesai.
+    if isinstance(orig, discord.NotFound) and orig.code == 10062:
+        print(
+            f"[error] /{cmd_name}: Unknown interaction (10062), umur interaction "
+            f"{_interaction_age(interaction):.2f}s, user={interaction.user.id}, "
+            f"sudah_direspons={interaction.response.is_done()}. Respons terlambat "
+            f"(>3s): cek event loop terblokir, gateway lag, atau instance bot ganda."
+        )
+        return
+
     if isinstance(error, app_commands.CommandOnCooldown):
         msg = f"Tunggu {error.retry_after:.0f} detik sebelum pakai command ini lagi."
     elif isinstance(error, amprem.WrongLocation):
@@ -107,16 +153,13 @@ async def on_app_command_error(
     elif isinstance(error, app_commands.NoPrivateMessage):
         msg = amprem.MSG_WRONG_SERVER
     else:
-        orig = getattr(error, "original", error)
-        cmd_name = getattr(interaction.command, "name", "?")
         print(
             f"[error] /{cmd_name}: {type(error).__name__} <- {type(orig).__name__}: {orig}"
         )
+        # Traceback lengkap supaya error lain tidak tersamarkan.
+        traceback.print_exception(type(orig), orig, orig.__traceback__)
         msg = "Terjadi kesalahan. Coba lagi nanti."
-    if interaction.response.is_done():
-        await interaction.followup.send(msg, ephemeral=True)
-    else:
-        await interaction.response.send_message(msg, ephemeral=True)
+    await _safe_reply(interaction, msg)
 
 
 @bot.event
